@@ -12,6 +12,7 @@
       <span class="menu-item" @click="showImprintWindow">Imprint</span>
       <span class="clock">{{ date }} {{ time }}</span>
     </div>
+
     <div class="desktop-icons">
       <div class="icon">
         <img src="/img/folders/blue.png" alt="Blue Folder" />
@@ -22,6 +23,7 @@
         <span>Projects</span>
       </div>
     </div>
+
     <div class="dock">
       <div
           v-for="(icon, i) in dockIcons"
@@ -31,9 +33,7 @@
           @mouseleave="hoveredIcon = null"
           style="position: relative;"
       >
-        <div v-if="hoveredIcon === i" class="dock-tooltip">
-          {{ icon.alt }}
-        </div>
+        <div v-if="hoveredIcon === i" class="dock-tooltip">{{ icon.alt }}</div>
         <img
             class="dock-icon"
             :src="icon.src"
@@ -43,6 +43,13 @@
         />
       </div>
     </div>
+
+    <div
+        v-if="selectionBox"
+        class="selection-box"
+        :style="selectionBoxStyle"
+    />
+
     <ImprintWindow
         v-if="showImprint"
         :maximized="imprintMaximized"
@@ -60,7 +67,6 @@
         @maximize="maximizeGithubFinder"
         @update:position="updateGithubFinderPosition"
     />
-
   </div>
 </template>
 
@@ -71,11 +77,11 @@ import GithubFinderWindow from './components/ProjectWindow.vue'
 
 const time = ref('')
 const date = ref('')
-const hoveredIcon = ref<number|null>(null)
+const hoveredIcon = ref<number | null>(null)
 const showImprint = ref(false)
 const imprintMinimized = ref(false)
 const imprintMaximized = ref(false)
-const imprintPosition = ref({ x: 0, y: 80 }) // safe default for SSR
+const imprintPosition = ref({ x: 0, y: 80 })
 
 function updateDateTime() {
   const now = new Date()
@@ -86,18 +92,35 @@ function updateDateTime() {
 onMounted(() => {
   updateDateTime()
   setInterval(updateDateTime, 1000)
-  // Only access window here
   imprintPosition.value = { x: window.innerWidth - 420, y: 80 }
 })
 
+// Imprint
 function showImprintWindow() {
   showImprint.value = true
   imprintMinimized.value = false
 }
 
+function handleImprintMinimize() {
+  imprintMinimized.value = true
+  showImprint.value = false
+}
+function handleImprintMaximize(val: boolean) {
+  imprintMaximized.value = val
+}
+function handleImprintClose() {
+  showImprint.value = false
+  imprintMinimized.value = false
+  imprintMaximized.value = false
+}
+function handleImprintRestore() {
+  showImprint.value = true
+  imprintMinimized.value = false
+}
+
+// Github Finder
 const showGithubFinder = ref(false)
 const githubFinderMaximized = ref(false)
-
 const githubFinderPosition = ref({ x: 100, y: 100 })
 
 onMounted(() => {
@@ -106,7 +129,6 @@ onMounted(() => {
     y: 100
   }
 })
-
 
 function openGithubFinder() {
   showGithubFinder.value = true
@@ -123,7 +145,7 @@ function updateGithubFinderPosition(pos: { x: number, y: number }) {
   githubFinderPosition.value = pos
 }
 
-
+// Dock Icons
 const icons = [
   { src: '/img/apps/finder.png', alt: 'Finder', url: 'https://www.apple.com/macos/' },
   { src: '/img/apps/webstorm.png', alt: 'WebStorm', url: 'https://www.jetbrains.com/webstorm/' },
@@ -156,22 +178,46 @@ const dockIcons = computed(() => {
   return base
 })
 
-function handleImprintMinimize() {
-  imprintMinimized.value = true
-  showImprint.value = false
+// Selection box logic
+const selectionBox = ref(false)
+const startCoords = ref({ x: 0, y: 0 })
+const currentCoords = ref({ x: 0, y: 0 })
+
+const selectionBoxStyle = computed(() => {
+  const x = Math.min(startCoords.value.x, currentCoords.value.x)
+  const y = Math.min(startCoords.value.y, currentCoords.value.y)
+  const width = Math.abs(startCoords.value.x - currentCoords.value.x)
+  const height = Math.abs(startCoords.value.y - currentCoords.value.y)
+  return {
+    left: `${x}px`,
+    top: `${y}px`,
+    width: `${width}px`,
+    height: `${height}px`
+  }
+})
+
+function onMouseDown(e: MouseEvent) {
+  if (e.button !== 0) return
+  selectionBox.value = true
+  startCoords.value = { x: e.clientX, y: e.clientY }
+  currentCoords.value = { ...startCoords.value }
 }
-function handleImprintMaximize(val: boolean) {
-  imprintMaximized.value = val
+
+function onMouseMove(e: MouseEvent) {
+  if (!selectionBox.value) return
+  currentCoords.value = { x: e.clientX, y: e.clientY }
 }
-function handleImprintClose() {
-  showImprint.value = false
-  imprintMinimized.value = false
-  imprintMaximized.value = false
+
+function onMouseUp() {
+  selectionBox.value = false
 }
-function handleImprintRestore() {
-  showImprint.value = true
-  imprintMinimized.value = false
-}
+
+onMounted(() => {
+  const desktop = document.querySelector('.desktop')
+  desktop?.addEventListener('mousedown', onMouseDown)
+  window.addEventListener('mousemove', onMouseMove)
+  window.addEventListener('mouseup', onMouseUp)
+})
 </script>
 
 <style>
@@ -305,4 +351,17 @@ html, body {
   transform: scale(1.18);
   background: rgba(255,255,255,0.08);
 }
+.selection-box {
+  position: absolute;
+  background-color: rgba(0, 122, 255, 0.2); /* macOS blue */
+  border: 1px solid rgba(0, 122, 255, 0.4);
+  border-radius: 6px;
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.3) inset,
+  0 0 4px rgba(0, 122, 255, 0.4);
+  pointer-events: none;
+  z-index: 50;
+}
+
 </style>
