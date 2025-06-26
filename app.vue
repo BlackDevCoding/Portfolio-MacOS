@@ -364,4 +364,13 @@ html, body {
   z-index: 50;
 }
 
+* {
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+  user-select: none;
+
+  -webkit-user-drag: none;  /* Disable image dragging */
+  cursor: default;          /* Show default arrow instead of text cursor */
+}
 </style>
